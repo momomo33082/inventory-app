@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>衣類在庫管理プロトタイプ</title>
+    <title>衣類在庫管理プロトタイプ v2.1</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
@@ -11,22 +11,16 @@
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 14px; }
         .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h2 { font-size: 1.1rem; margin-top: 0; color: var(--primary); }
-        
-        /* スキャナー */
         #canvas { width: 100%; border-radius: 8px; background: #000; }
-        
-        /* QR作成エリア */
         .gen-area input { width: 60%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
         .gen-area button { padding: 8px 15px; background: var(--primary); color: white; border: none; border-radius: 4px; }
         #qrcode { margin-top: 10px; display: flex; justify-content: center; }
-
-        /* テーブル */
         .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        table { width: 100%; border-collapse: collapse; min-width: 350px; }
         th, td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
-        input[type="number"], input[type="text"] { width: 80px; padding: 4px; border: 1px solid #ddd; }
-        .profit { font-weight: bold; color: #059669; }
-        .delete-btn { color: #ef4444; border: none; background: none; font-size: 1.2rem; }
+        input[type="number"] { width: 70px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; } /* 16px以上にするとiPhoneでズームしません */
+        .profit-val { font-weight: bold; color: #059669; }
+        .delete-btn { color: #ef4444; border: none; background: none; font-size: 1.2rem; padding: 10px; }
     </style>
 </head>
 <body>
@@ -38,13 +32,12 @@
 </div>
 
 <div class="card gen-area">
-    <h2><center>🏷 ラベル作成 (QR生成)</center></h2>
+    <h2><center>🏷 ラベル作成</center></h2>
     <div style="display:flex; gap:5px; justify-content:center;">
-        <input type="text" id="qr-text" placeholder="商品IDや名前を入力">
+        <input type="text" id="qr-text" placeholder="商品IDを入力">
         <button onclick="generateQR()">作成</button>
     </div>
     <div id="qrcode"></div>
-    <p style="font-size:10px; color:gray; text-align:center;">※この画像を保存して印刷できます</p>
 </div>
 
 <div class="card table-container">
@@ -52,15 +45,15 @@
     <table>
         <thead>
             <tr>
-                <th>商品情報</th>
-                <th>販売価格</th>
-                <th>純利益(90%)</th>
-                <th>操作</th>
+                <th style="width:30%">商品</th>
+                <th style="width:30%">価格</th>
+                <th style="width:30%">利益</th>
+                <th style="width:10%"></th>
             </tr>
         </thead>
         <tbody id="list"></tbody>
     </table>
-    <button onclick="exportCSV()" style="width:100%; margin-top:15px; padding:10px; background:#10b981; color:white; border:none; border-radius:8px;">CSV書き出し</button>
+    <button onclick="exportCSV()" style="width:100%; margin-top:20px; padding:12px; background:#10b981; color:white; border:none; border-radius:8px; font-weight:bold;">CSV書き出し</button>
 </div>
 
 <script>
@@ -69,7 +62,6 @@
     const canvas = canvasElement.getContext("2d");
     let inventory = JSON.parse(localStorage.getItem('clothing_inv')) || [];
 
-    // カメラ起動
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
         video.srcObject = stream;
         video.setAttribute("playsinline", true);
@@ -93,10 +85,12 @@
     function addInventory(data) {
         if (isLock) return;
         isLock = true;
-        const newItem = { id: Date.now(), name: data, price: 0, profit: 0 };
+        const newItem = { id: Date.now(), name: data, price: "" };
         inventory.unshift(newItem);
-        save();
-        document.getElementById("status").innerText = "読取完了！: " + data;
+        localStorage.setItem('clothing_inv', JSON.stringify(inventory));
+        render(); // スキャン時は一覧を更新
+        
+        document.getElementById("status").innerText = "読取完了: " + data;
         setTimeout(() => { isLock = false; document.getElementById("status").innerText = "スキャン待機中..."; }, 2000);
     }
 
@@ -107,41 +101,43 @@
         new QRCode(document.getElementById("qrcode"), { text: text, width: 128, height: 128 });
     }
 
-    function updatePrice(id, val) {
+    // 価格入力時の処理：ここを修正しました
+    function onPriceInput(id, val) {
         const item = inventory.find(i => i.id === id);
         if (item) {
-            item.price = Number(val);
-            item.profit = Math.floor(item.price * 0.9); // 手数料10%引き
-            save();
+            item.price = val;
+            const profit = Math.floor(Number(val) * 0.9);
+            // 画面全体を書き換え直さず、特定の利益表示部分だけを更新する
+            document.getElementById(`profit-${id}`).innerText = profit.toLocaleString() + "円";
+            localStorage.setItem('clothing_inv', JSON.stringify(inventory));
         }
-    }
-
-    function save() {
-        localStorage.setItem('clothing_inv', JSON.stringify(inventory));
-        render();
     }
 
     function render() {
         const list = document.getElementById("list");
-        list.innerHTML = inventory.map(item => `
+        list.innerHTML = inventory.map(item => {
+            const currentProfit = Math.floor(Number(item.price || 0) * 0.9);
+            return `
             <tr>
                 <td>${item.name}</td>
-                <td><input type="number" value="${item.price}" oninput="updatePrice(${item.id}, this.value)">円</td>
-                <td class="profit">${item.profit.toLocaleString()}円</td>
-                <td><button class="delete-btn" onclick="deleteItem(${item.id})">🗑</button></td>
+                <td><input type="number" value="${item.price}" placeholder="0" oninput="onPriceInput(${item.id}, this.value)"></td>
+                <td class="profit-val" id="profit-${item.id}">${currentProfit.toLocaleString()}円</td>
+                <td><button class="delete-btn" onclick="deleteItem(${item.id})">×</button></td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     }
 
     function deleteItem(id) {
         if(confirm("削除しますか？")) {
             inventory = inventory.filter(i => i.id !== id);
-            save();
+            localStorage.setItem('clothing_inv', JSON.stringify(inventory));
+            render();
         }
     }
 
     function exportCSV() {
-        let csv = "商品名,販売価格,純利益\n" + inventory.map(i => `${i.name},${i.price},${i.profit}`).join("\n");
+        let csv = "商品名,販売価格,純利益\n" + inventory.map(i => `${i.name},${i.price},${Math.floor(i.price * 0.9)}`).join("\n");
         const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
