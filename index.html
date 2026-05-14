@@ -3,182 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スマート備品管理システム</title>
+    <title>衣類在庫管理プロトタイプ</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #1e293b;
-            --border: #e2e8f0;
-        }
+        :root { --primary: #4f46e5; --bg: #f3f4f6; --card: #ffffff; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 14px; }
+        .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { font-size: 1.1rem; margin-top: 0; color: var(--primary); }
+        
+        /* スキャナー */
+        #canvas { width: 100%; border-radius: 8px; background: #000; }
+        
+        /* QR作成エリア */
+        .gen-area input { width: 60%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .gen-area button { padding: 8px 15px; background: var(--primary); color: white; border: none; border-radius: 4px; }
+        #qrcode { margin-top: 10px; display: flex; justify-content: center; }
 
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1000px;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        /* カメラエリア */
-        .scanner-section {
-            background: var(--card);
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-
-        #canvas-container {
-            position: relative;
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #000;
-        }
-
-        #canvas {
-            width: 100%;
-            display: block;
-        }
-
-        .scan-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 70%;
-            height: 70%;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 8px;
-            box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.3);
-        }
-
-        /* テーブルエリア */
-        .list-section {
-            background: var(--card);
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-
-        th {
-            background: #f1f5f9;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid var(--border);
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        input[type="number"], input[type="text"] {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        .delete-btn {
-            color: #ef4444;
-            cursor: pointer;
-            border: none;
-            background: none;
-        }
-
-        .status-msg {
-            margin-top: 10px;
-            font-weight: bold;
-            color: var(--primary);
-        }
-
-        .export-btn {
-            margin-top: 10px;
-            padding: 10px 20px;
-            background: #10b981;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        /* テーブル */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
+        input[type="number"], input[type="text"] { width: 80px; padding: 4px; border: 1px solid #ddd; }
+        .profit { font-weight: bold; color: #059669; }
+        .delete-btn { color: #ef4444; border: none; background: none; font-size: 1.2rem; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <header>
-        <h1><i data-lucide="package"></i> スマート備品管理</h1>
-        <p>バーコード/QRコードをカメラにかざしてください</p>
-    </header>
+<div class="card">
+    <h2><center>📷 スキャン</center></h2>
+    <canvas id="canvas"></canvas>
+    <div id="status" style="text-align:center; margin-top:5px; font-weight:bold;">スキャン待機中...</div>
+</div>
 
-    <div class="scanner-section">
-        <div id="canvas-container">
-            <canvas id="canvas"></canvas>
-            <div class="scan-overlay"></div>
-        </div>
-        <div id="status" class="status-msg">スキャン待機中...</div>
-        <button onclick="exportCSV()" class="export-btn">CSVで書き出し</button>
+<div class="card gen-area">
+    <h2><center>🏷 ラベル作成 (QR生成)</center></h2>
+    <div style="display:flex; gap:5px; justify-content:center;">
+        <input type="text" id="qr-text" placeholder="商品IDや名前を入力">
+        <button onclick="generateQR()">作成</button>
     </div>
+    <div id="qrcode"></div>
+    <p style="font-size:10px; color:gray; text-align:center;">※この画像を保存して印刷できます</p>
+</div>
 
-    <div class="list-section">
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 15%;">日時</th>
-                    <th style="width: 15%;">分類</th>
-                    <th style="width: 20%;">商品名</th>
-                    <th style="width: 10%;">数量</th>
-                    <th style="width: 30%;">備考</th>
-                    <th style="width: 10%;">操作</th>
-                </tr>
-            </thead>
-            <tbody id="inventory-body">
-                </tbody>
-        </table>
-    </div>
+<div class="card table-container">
+    <h2><center>📦 在庫一覧</center></h2>
+    <table>
+        <thead>
+            <tr>
+                <th>商品情報</th>
+                <th>販売価格</th>
+                <th>純利益(90%)</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="list"></tbody>
+    </table>
+    <button onclick="exportCSV()" style="width:100%; margin-top:15px; padding:10px; background:#10b981; color:white; border:none; border-radius:8px;">CSV書き出し</button>
 </div>
 
 <script>
     const video = document.createElement("video");
     const canvasElement = document.getElementById("canvas");
     const canvas = canvasElement.getContext("2d");
-    const statusMsg = document.getElementById("status");
-    let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+    let inventory = JSON.parse(localStorage.getItem('clothing_inv')) || [];
 
-    // アイコン初期化
-    lucide.createIcons();
-
-    // カメラ設定
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function(stream) {
+    // カメラ起動
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
         video.srcObject = stream;
         video.setAttribute("playsinline", true);
         video.play();
@@ -187,109 +79,76 @@
 
     function tick() {
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvasElement.height = video.videoHeight;
-            canvasElement.width = video.videoWidth;
+            canvasElement.height = 300;
+            canvasElement.width = 400;
             canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            
             const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
-            });
-
-            if (code) {
-                processCode(code.data);
-            }
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) { addInventory(code.data); }
         }
         requestAnimationFrame(tick);
     }
 
-    let isProcessing = false;
-    function processCode(data) {
-        if (isProcessing) return;
-        isProcessing = true;
-
-        // QRコードのフォーマット想定: "分類,商品名"
-        // 例: "事務用品,ボールペン"
-        let category = "未分類";
-        let name = data;
-
-        if (data.includes(",")) {
-            const parts = data.split(",");
-            category = parts[0];
-            name = parts[1];
-        }
-
-        const newItem = {
-            id: Date.now(),
-            timestamp: new Date().toLocaleString('ja-JP'),
-            category: category,
-            name: name,
-            quantity: 1,
-            memo: ""
-        };
-
-        inventory.unshift(newItem); // 先頭に追加
-        saveAndRender();
-        
-        statusMsg.innerText = `読取完了: ${name}`;
-        setTimeout(() => {
-            statusMsg.innerText = "スキャン待機中...";
-            isProcessing = false;
-        }, 2000);
+    let isLock = false;
+    function addInventory(data) {
+        if (isLock) return;
+        isLock = true;
+        const newItem = { id: Date.now(), name: data, price: 0, profit: 0 };
+        inventory.unshift(newItem);
+        save();
+        document.getElementById("status").innerText = "読取完了！: " + data;
+        setTimeout(() => { isLock = false; document.getElementById("status").innerText = "スキャン待機中..."; }, 2000);
     }
 
-    function updateItem(id, field, value) {
+    function generateQR() {
+        const text = document.getElementById("qr-text").value;
+        if(!text) return;
+        document.getElementById("qrcode").innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), { text: text, width: 128, height: 128 });
+    }
+
+    function updatePrice(id, val) {
         const item = inventory.find(i => i.id === id);
         if (item) {
-            item[field] = value;
-            localStorage.setItem('inventory', JSON.stringify(inventory));
+            item.price = Number(val);
+            item.profit = Math.floor(item.price * 0.9); // 手数料10%引き
+            save();
         }
+    }
+
+    function save() {
+        localStorage.setItem('clothing_inv', JSON.stringify(inventory));
+        render();
+    }
+
+    function render() {
+        const list = document.getElementById("list");
+        list.innerHTML = inventory.map(item => `
+            <tr>
+                <td>${item.name}</td>
+                <td><input type="number" value="${item.price}" oninput="updatePrice(${item.id}, this.value)">円</td>
+                <td class="profit">${item.profit.toLocaleString()}円</td>
+                <td><button class="delete-btn" onclick="deleteItem(${item.id})">🗑</button></td>
+            </tr>
+        `).join('');
     }
 
     function deleteItem(id) {
-        if(confirm("このデータを削除しますか？")) {
+        if(confirm("削除しますか？")) {
             inventory = inventory.filter(i => i.id !== id);
-            saveAndRender();
+            save();
         }
     }
 
-    function saveAndRender() {
-        localStorage.setItem('inventory', JSON.stringify(inventory));
-        const tbody = document.getElementById("inventory-body");
-        tbody.innerHTML = "";
-
-        inventory.forEach(item => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${item.timestamp}</td>
-                <td><input type="text" value="${item.category}" onchange="updateItem(${item.id}, 'category', this.value)"></td>
-                <td><input type="text" value="${item.name}" onchange="updateItem(${item.id}, 'name', this.value)"></td>
-                <td><input type="number" value="${item.quantity}" onchange="updateItem(${item.id}, 'quantity', this.value)"></td>
-                <td><input type="text" value="${item.memo}" placeholder="備考を入力" onchange="updateItem(${item.id}, 'memo', this.value)"></td>
-                <td><button class="delete-btn" onclick="deleteItem(${item.id})"><i data-lucide="trash-2"></i></button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-        lucide.createIcons();
-    }
-
     function exportCSV() {
-        let csvContent = "data:text/csv;charset=utf-8,日時,分類,商品名,数量,備考\n";
-        inventory.forEach(item => {
-            csvContent += `${item.timestamp},${item.category},${item.name},${item.quantity},${item.memo}\n`;
-        });
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "inventory_data.csv");
-        document.body.appendChild(link);
-        link.click();
+        let csv = "商品名,販売価格,純利益\n" + inventory.map(i => `${i.name},${i.price},${i.profit}`).join("\n");
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "inventory.csv"; a.click();
     }
 
-    // 初回レンダリング
-    saveAndRender();
-
+    render();
 </script>
-
 </body>
 </html>
